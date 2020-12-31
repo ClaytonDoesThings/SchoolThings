@@ -1,0 +1,5 @@
+/target
+.env
+Rocket.toml
+favicon.png
+favicon.svg

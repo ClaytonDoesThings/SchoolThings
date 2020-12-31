@@ -14,9 +14,9 @@ This assumes running on Ubuntu
 8. Setup database
     1. Enter postgres user `sudo su - postgres`
     2. Enter postgres CLI `psql`
-    3. Set postgres user password `ALTER USER postgres PASSWORD 'desiredPassword';`
-    4. Create database `createdb school_things;`
-    5. Exit CLI `exit`
+    3. Set postgres database password `ALTER USER postgres PASSWORD 'desiredPassword';`
+    4. Exit CLI `exit`
+    5. Create database `createdb school_things;`
     6. Exit postgres user `exit`
 9. Setup diesel environment
     1. Create `.env` file in repository root (Make sure )  

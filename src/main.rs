@@ -9,6 +9,7 @@ use rocket::{
     http::{
         Cookie,
         Cookies,
+        Status,
     },
     request::Form,
     response::{
@@ -26,11 +27,14 @@ use rocket_contrib::templates::{
 };
 
 #[macro_use] extern crate diesel;
-use diesel::prelude::*;
-use diesel::PgConnection;
+use diesel::{
+    prelude::*,
+    PgConnection,
+};
 pub mod schema;
 pub mod models;
 pub mod crypt_eq;
+pub mod db;
 use crate::crypt_eq::CryptExpressionMethods;
 
 #[database("postgres")]
@@ -42,65 +46,25 @@ fn default_context() -> Context {
     return context;
 }
 
-fn signed_in_context(db_conn: DbConn, cookies: Cookies) -> Context {
+fn signed_in_context(pg_conn: &PgConnection, cookies: Cookies) -> Context {
     let mut context = default_context();
-    match get_session_from_cookies(&*db_conn, cookies) {
+    match db::get_session_from_cookies(&pg_conn, cookies) {
         Ok(session) => {
-            match get_user_from_session(&*db_conn, session) {
+            match db::get_user_from_session(&pg_conn, session) {
                 Ok(user) => {
                     context.insert("user", &user);
                     context.insert("clean_user", &models::CleanUser::new(user));
                 },
-                Err(_e) => println!("{}", _e)
+                Err(_) => {}
             }
         },
-        Err(_e) => println!("{}", _e)
+        Err(_) => {}
     }
     return context;
 }
 
-fn get_session_id(mut cookies: Cookies) -> Result<i64, String> {
-    match cookies.get_private("session_id") {
-        Some(session_id_cookie) => {
-            match session_id_cookie.value().parse::<i64>() {
-                Ok(session_id) => Ok(session_id),
-                Err(e) => Err(format!("Failed to parse session_id: {}", e))
-            }
-        },
-        None => Err("No session_id in cookies".to_string())
-    }
-}
-
-fn get_session(pg_conn: &PgConnection, session_id: i64) -> Result<models::Session, String> {
-    match schema::sessions::table.find(session_id).first::<models::Session>(pg_conn) {
-        Ok(session) => Ok(session),
-        Err(e) => Err(format!("Failed to get session {}: {}", session_id, e))
-    }
-}
-
-fn get_session_from_cookies(pg_conn: &PgConnection, cookies: Cookies) -> Result<models::Session, String> {
-    match get_session_id(cookies) {
-        Ok(session_id) => get_session(pg_conn, session_id),
-        Err(e) => Err(format!("Failed to get session id: {}", e))
-    }
-}
-
-fn get_user(pg_conn: &PgConnection, user_id: i64) -> Result<models::User, String> {
-    match schema::users::table.find(user_id).first::<models::User>(pg_conn) {
-        Ok(user) => Ok(user),
-        Err(e) => Err(format!("Failed to get user: {}", e))
-    }
-}
-
-fn get_user_from_session(pg_conn: &PgConnection, session: models::Session) -> Result<models::User, String> {
-    match session.logged_in_user {
-        Some(logged_in_user) => get_user(pg_conn, logged_in_user),
-        None => Err("Session is not logged in".to_string())
-    }
-}
-
 #[get("/")]
-fn home(db_conn: DbConn, cookies: Cookies) -> Template { Template::render("home", &signed_in_context(db_conn, cookies)) }
+fn home(db_conn: DbConn, cookies: Cookies) -> Template { Template::render("home", &signed_in_context(&*db_conn, cookies)) }
 
 #[get("/favicon.ico")]
 fn favicon() -> Result<NamedFile, status::NotFound<String>> {
@@ -113,7 +77,7 @@ fn sitemap() -> Template { Template::render("sitemap", &default_context()) }
 
 #[get("/login?<error>")]
 fn login(error: Option<String>, db_conn: DbConn, cookies: Cookies) -> Template {
-    let mut context = signed_in_context(db_conn, cookies);
+    let mut context = signed_in_context(&*db_conn, cookies);
     match error {
         Some(error) => context.insert("error", &clean_text(&error)),
         None => {}
@@ -123,7 +87,7 @@ fn login(error: Option<String>, db_conn: DbConn, cookies: Cookies) -> Template {
 
 #[get("/signup?<error>")]
 fn signup(error: Option<String>, db_conn: DbConn, cookies: Cookies) -> Template {
-    let mut context = signed_in_context(db_conn, cookies);
+    let mut context = signed_in_context(&*db_conn, cookies);
     match error {
         Some(error) => context.insert("error", &clean_text(&error)),
         None => {}
@@ -162,7 +126,7 @@ fn submit_login(db_conn: DbConn, login_user: Form<models::LoginUser>, cookies: C
     match user_query.first::<models::User>(&*db_conn) {
         Ok(user) => {
             match update_session_logged_in_user(user, cookies, db_conn) {
-                Ok(_) => Redirect::to(uri!(user: &login_user.username)),
+                Ok(_) => Redirect::to(uri!(user_profile: &login_user.username)),
                 Err(_) => Redirect::to(uri!(login: "Failed to set session_id cookie.".to_string()))
             }
         },
@@ -191,7 +155,7 @@ fn submit_signup(db_conn: DbConn, new_user_form: Form<models::NewUser>, cookies:
                                     match schema::users::table.filter(schema::users::email.eq(email)).first::<models::User>(&*db_conn) {
                                         Ok(user) => {
                                             match update_session_logged_in_user(user, cookies, db_conn) {
-                                                Ok(_) => Redirect::to(uri!(user: &username)),
+                                                Ok(_) => Redirect::to(uri!(user_profile: &username)),
                                                 Err(_) => Redirect::to(uri!(signup: "Failed to set session_id cookie.".to_string()))
                                             }
                                         },
@@ -220,9 +184,39 @@ fn submit_signup(db_conn: DbConn, new_user_form: Form<models::NewUser>, cookies:
     }
 }
 
+#[post("/signout")]
+fn signout(db_conn: DbConn, cookies: Cookies) -> Result<Redirect, status::Custom<String>> {
+    match db::get_session_from_cookies(&*db_conn, cookies) {
+        Ok(session) => {
+            match session.logged_in_user {
+                Some(_) => {
+                    match diesel::update(schema::sessions::table.filter(schema::sessions::id.eq(session.id))).set(schema::sessions::logged_in_user.eq::<Option<i64>>(None)).execute(&*db_conn) {
+                        Ok(_) => Ok(Redirect::to(uri!(home))),
+                        Err(_) => {
+                            Err(status::Custom(Status::InternalServerError, "Failed to update session".to_string()))
+                        }
+                    }
+                },
+                None => Err(status::Custom(Status::BadRequest, "Session not signed in".to_string()))
+            }
+        },
+        Err(_) => {
+            Err(status::Custom(Status::InternalServerError, "Failed to get session from cookies".to_string()))
+        }
+    }
+}
+
 #[get("/user/<username>")]
-fn user(username: String) -> String {
-    "Not done".to_string()
+fn user_profile(username: String, db_conn: DbConn, cookies: Cookies) -> Result<Template, status::NotFound<String>> {
+    let mut context = signed_in_context(&*db_conn, cookies);
+    match db::get_user_by_username(&*db_conn, username) {
+        Ok(user) => {
+            context.insert("profile", &user);
+            context.insert("profile_cleaned", &models::CleanUser::new(user));
+            Ok(Template::render("user_profile", &context))
+        },
+        Err(e) => Err(status::NotFound(e))
+    }
 }
 
 fn main() {
@@ -235,7 +229,8 @@ fn main() {
             signup,
             submit_login,
             submit_signup,
-            user,
+            signout,
+            user_profile,
         ])
         .attach(DbConn::fairing())
         .attach(Template::fairing())

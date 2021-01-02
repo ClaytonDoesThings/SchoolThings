@@ -1,5 +1,5 @@
 {% extends "base" %}
-{% block title %}Home - School Things{% endblock title %}
+{% block title %}Home | School Things{% endblock title %}
 {% block description %}The home page for School Things.{% endblock description %}
 {% block content %}
     <h1>Home</h1>

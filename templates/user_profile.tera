@@ -1,0 +1,18 @@
+{% extends "base" %}
+{% block title %}{{ profile_cleaned.username.html }} | user profile | School Things{% endblock title %}
+{% block description %}{{ profile_cleaned.username.html }}'s user profile on School Things.{% endblock description %}
+{% block canonical_path %}/user/{{ profile_cleaned.username.url }}{% endblock canonical_path %}
+{% block content %}
+    {% set personal_profile = user.id == profile.id %}
+    <h1>{% if personal_profile %}
+        Your profile!
+    {% else %}
+        {{ profile_cleaned.username.html }}'s profile!
+    {% endif %}</h1>
+
+    {% if personal_profile %}
+        <form action="/signout" method="post">
+            <button type="submit">Signout</button>
+        </form>
+    {% endif %}
+{% endblock content %}

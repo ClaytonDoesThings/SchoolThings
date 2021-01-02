@@ -30,8 +30,9 @@
 
     <ul id="navbar">
         <li id="title"><a href="/">School Things</a></li>
+        <li><a href="/apps">Apps</a></li>
         {% if clean_user %}
-            <li><a href="/user/{{ clean_user.username.url }}">{{ clean_user.username.html }}</a></li>
+            <li><a href="/users/{{ clean_user.username.url }}">{{ clean_user.username.html }}</a></li>
         {% else %}
             <li><a href="/login">Login</a></li>
             <li><a href="/signup">Sign Up</a></li>

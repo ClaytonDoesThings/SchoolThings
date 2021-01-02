@@ -206,7 +206,7 @@ fn signout(db_conn: DbConn, cookies: Cookies) -> Result<Redirect, status::Custom
     }
 }
 
-#[get("/user/<username>")]
+#[get("/users/<username>")]
 fn user_profile(username: String, db_conn: DbConn, cookies: Cookies) -> Result<Template, status::NotFound<String>> {
     let mut context = signed_in_context(&*db_conn, cookies);
     match db::get_user_by_username(&*db_conn, username) {
@@ -217,6 +217,12 @@ fn user_profile(username: String, db_conn: DbConn, cookies: Cookies) -> Result<T
         },
         Err(e) => Err(status::NotFound(e))
     }
+}
+
+#[get("/apps")]
+fn apps(db_conn: DbConn, cookies: Cookies) -> Template {
+    let mut context = signed_in_context(&*db_conn, cookies);
+    Template::render("apps", &context)
 }
 
 fn main() {
@@ -231,6 +237,7 @@ fn main() {
             submit_signup,
             signout,
             user_profile,
+            apps,
         ])
         .attach(DbConn::fairing())
         .attach(Template::fairing())

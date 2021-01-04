@@ -1,0 +1,14 @@
+{% extends "base" %}
+{% block title %}Create App | School Things{% endblock title %}
+{% block description %}Apps{% endblock description %}
+{% block canonical_path %}/apps{% endblock canonical_path %}
+{% block content %}
+    <h1>Create App</h1>
+    {% if not user %}
+        <span>You must be signed in to create an app</span>
+    {% else %}
+        <form method="POST" action="/apps">
+            <button type="submit">Create</button>
+        </form>
+    {% endif %}
+{% endblock content %}

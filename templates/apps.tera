@@ -4,4 +4,7 @@
 {% block canonical_path %}/apps{% endblock canonical_path %}
 {% block content %}
     <h1>Apps</h1>
+    {% if user %}
+    <a href="/apps/create">Create Your Own!</a>
+    {% endif %}
 {% endblock content %}

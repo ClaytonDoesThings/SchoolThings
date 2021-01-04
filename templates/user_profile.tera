@@ -1,5 +1,5 @@
 {% extends "base" %}
-{% block title %}{{ profile_cleaned.username.html }} | user profile | School Things{% endblock title %}
+{% block title %}{{ profile_cleaned.username.html }} | User Profile | School Things{% endblock title %}
 {% block description %}{{ profile_cleaned.username.html }}'s user profile on School Things.{% endblock description %}
 {% block canonical_path %}/user/{{ profile_cleaned.username.url }}{% endblock canonical_path %}
 {% block content %}

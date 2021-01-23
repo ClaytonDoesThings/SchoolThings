@@ -1,0 +1,43 @@
+{% extends "base" %}
+{% block title %}{{ clean_app.title.html }} | App | School Things{% endblock title %}
+{% block description %}{{ clean_app.title.html }} on School Things.{% endblock description %}
+{% block canonical_path %}/app/{{ clean_app.title.url }}{% endblock canonical_path %}
+{% block content %}
+    {% set owned_app = user and user.id == app.owner_id %}
+    <h1>{{ clean_app.title.html }}</h1>
+    {% if owned_app %}
+        You own this app.
+        <br>
+        <button id="openDeleteModal">Delete</button>
+        <div id="deleteModal" class="modal">
+            <div class="modal-content">
+                <span id="deleteModalClose" class="modal-close">&times;</span>
+                <p>This will delete the app permanently. <b>This cannot be reversed.</b></p>
+                <form action="{{ clean_app.title.url }}/delete" method="POST">
+                    <input type="text" id="username" name="username" value="{{ clean_user.username.html }}" style="display: none">
+                    <label for="password">Password: </label><input type="password" id="password" name="password"><br>
+                    <button type="submit">Delete</button>
+                </form>
+            </div>
+        </div>
+        <script>
+            var deleteModal = document.getElementById("deleteModal");
+
+            document.getElementById("openDeleteModal").onclick = () => {
+                deleteModal.style.display = "block";
+            }
+
+            document.getElementById("deleteModalClose").onclick = () => {
+                deleteModal.style.display = "none";
+            }
+
+            window.onclick = (event) => {
+                if (event.target == deleteModal) {
+                    deleteModal.style.display = "none";
+                }
+            }
+        </script>
+    {% else %}
+        You don't own this app.
+    {% endif %}
+{% endblock content %}

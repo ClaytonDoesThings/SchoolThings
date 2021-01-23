@@ -5,6 +5,10 @@
 {% block content %}
     <h1>Apps</h1>
     {% if user %}
-    <a href="/apps/create">Create Your Own!</a>
+        <a href="/createApp">Create Your Own!</a>
     {% endif %}
+    <br>
+    {% for clean_app in clean_apps %}
+        <span><a href="./apps/{{ clean_app.title.url }}" style="color: #000">{{ clean_app.title.html }}</a></span>
+    {% endfor %}
 {% endblock content %}

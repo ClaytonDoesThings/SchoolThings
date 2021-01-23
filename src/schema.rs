@@ -1,4 +1,17 @@
 table! {
+    apps (id) {
+        id -> Int8,
+        owner_id -> Int8,
+        title -> Varchar,
+        description -> Varchar,
+        domain -> Varchar,
+        token -> Bpchar,
+        connected -> Bool,
+        connected_error -> Varchar,
+    }
+}
+
+table! {
     sessions (id) {
         id -> Int8,
         logged_in_user -> Nullable<Int8>,
@@ -15,6 +28,7 @@ table! {
 }
 
 allow_tables_to_appear_in_same_query!(
+    apps,
     sessions,
     users,
 );

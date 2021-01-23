@@ -3,6 +3,9 @@
 use ammonia::clean_text;
 use regex::Regex;
 use std::path::Path;
+use validator::{
+    validate_email,
+};
 
 #[macro_use] extern crate rocket;
 use rocket::{
@@ -46,25 +49,28 @@ fn default_context() -> Context {
     return context;
 }
 
-fn signed_in_context(pg_conn: &PgConnection, cookies: Cookies) -> Context {
+fn signed_in_context(pg_conn: &PgConnection, cookies: Cookies) -> (Context, Option<models::Session>, Option<models::User>) {
     let mut context = default_context();
     match db::get_session_from_cookies(&pg_conn, cookies) {
         Ok(session) => {
-            match db::get_user_from_session(&pg_conn, session) {
+            match db::get_user_from_session(&pg_conn, &session) {
                 Ok(user) => {
                     context.insert("user", &user);
-                    context.insert("clean_user", &models::CleanUser::new(user));
+                    context.insert("clean_user", &models::CleanUser::new(&user));
+                    (context, Some(session), Some(user))
                 },
-                Err(_) => {}
+                Err(_) => (context, Some(session), None)
             }
         },
-        Err(_) => {}
+        Err(_) => (context, None, None)
     }
-    return context;
 }
 
 #[get("/")]
-fn home(db_conn: DbConn, cookies: Cookies) -> Template { Template::render("home", &signed_in_context(&*db_conn, cookies)) }
+fn home(db_conn: DbConn, cookies: Cookies) -> Template {
+    let (context, _, _) = signed_in_context(&*db_conn, cookies);
+    Template::render("home", &context)
+}
 
 #[get("/favicon.ico")]
 fn favicon() -> Result<NamedFile, status::NotFound<String>> {
@@ -77,7 +83,7 @@ fn sitemap() -> Template { Template::render("sitemap", &default_context()) }
 
 #[get("/login?<error>&<username>")]
 fn login(error: Option<String>, username: Option<String>, db_conn: DbConn, cookies: Cookies) -> Template {
-    let mut context = signed_in_context(&*db_conn, cookies);
+    let (mut context, _, _) = signed_in_context(&*db_conn, cookies);
     match error {
         Some(error) => context.insert("error", &clean_text(&error)),
         None => {}
@@ -91,7 +97,7 @@ fn login(error: Option<String>, username: Option<String>, db_conn: DbConn, cooki
 
 #[get("/signup?<error>&<username>&<email>")]
 fn signup(error: Option<String>, username: Option<String>, email: Option<String>, db_conn: DbConn, cookies: Cookies) -> Template {
-    let mut context = signed_in_context(&*db_conn, cookies);
+    let (mut context, _, _) = signed_in_context(&*db_conn, cookies);
     match error {
         Some(error) => context.insert("error", &clean_text(&error)),
         None => {}
@@ -113,11 +119,11 @@ fn update_session_logged_in_user(user: models::User, mut cookies: Cookies, db_co
             match session_id_cookie.value().parse::<i64>() {
                 Ok(session_id) => {
                     match diesel::update(schema::sessions::table.find(session_id)).set(schema::sessions::logged_in_user.eq(user.id)).execute(&*db_conn) {
-                        Ok(_v) => Ok("Signed in!".to_string()),
-                        Err(_e) => Err("Failed to update session".to_string())
+                        Ok(_) => Ok("Signed in!".to_string()),
+                        Err(_) => Err("Failed to update session".to_string())
                     }
                 },
-                Err(_e) => Err("Failed to parse session_id cookie".to_string())
+                Err(_) => Err("Failed to parse session_id cookie".to_string())
             }
         },
         None => {
@@ -126,7 +132,7 @@ fn update_session_logged_in_user(user: models::User, mut cookies: Cookies, db_co
                     cookies.add_private(Cookie::new("session_id", format!("{}", session.id)));
                     Ok("Signed in!".to_string())
                 },
-                Err(_e) => Err("Failed to create session".to_string())
+                Err(_) => Err("Failed to create session".to_string())
             }
         }
     }
@@ -147,8 +153,8 @@ fn submit_login(db_conn: DbConn, login_user: Form<models::LoginUser>, cookies: C
     }
 }
 
-fn valid_username(username: &str) -> bool {
-    Regex::new(r"^[0-9A-z]+$").unwrap().is_match(username)
+fn validate_title(username: &str) -> bool {
+    Regex::new(r"^[0-9A-Za-z][0-9A-Za-z_-]{1,10}[0-9A-Za-z]$").unwrap().is_match(username)
 }
 
 #[post("/signup", data = "<new_user_form>")]
@@ -156,9 +162,9 @@ fn submit_signup(db_conn: DbConn, new_user_form: Form<models::NewUser>, cookies:
     let new_user = new_user_form.into_inner();
     let email = new_user.email.clone();
     let username = new_user.username.clone();
-    match valid_username(&username) {
+    match validate_title(&username) {
         true => {
-            match validator::validate_email(&email) {
+            match validate_email(&email) {
                 true => {
                     match new_user.password.len() >= 1 && new_user.password.len() <= 72 {
                         true => {
@@ -180,7 +186,7 @@ fn submit_signup(db_conn: DbConn, new_user_form: Form<models::NewUser>, cookies:
                                         "duplicate key value violates unique constraint \"users_username_key\"" => Redirect::to(uri!(signup: "Duplicate username".to_string(), username, email)),
                                         "duplicate key value violates unique constraint \"users_email_key\"" => Redirect::to(uri!(signup: "Duplicate email".to_string(), username, email)),
                                         _ => {
-                                            println!("Failed to add user to database: {}", e);
+                                            eprintln!("Failed to add user to database: {}", e);
                                             Redirect::to(uri!(signup: "Failed to add user to database".to_string(), username, email))
                                         }
                                     }
@@ -221,27 +227,109 @@ fn signout(db_conn: DbConn, cookies: Cookies) -> Result<Redirect, status::Custom
 
 #[get("/users/<username>")]
 fn user_profile(username: String, db_conn: DbConn, cookies: Cookies) -> Result<Template, status::NotFound<String>> {
-    let mut context = signed_in_context(&*db_conn, cookies);
+    let (mut context, _, _) = signed_in_context(&*db_conn, cookies);
     match db::get_user_by_username(&*db_conn, username) {
         Ok(user) => {
             context.insert("profile", &user);
-            context.insert("profile_cleaned", &models::CleanUser::new(user));
+            context.insert("profile_cleaned", &models::CleanUser::new(&user));
             Ok(Template::render("user_profile", &context))
         },
-        Err(e) => Err(status::NotFound(e))
+        Err(_) => Err(status::NotFound("Couldn't find user".to_string()))
     }
 }
 
 #[get("/apps")]
 fn apps(db_conn: DbConn, cookies: Cookies) -> Template {
-    let context = signed_in_context(&*db_conn, cookies);
+    let (mut context, _, _) = signed_in_context(&*db_conn, cookies);
+    match db::get_apps(&*db_conn) {
+        Ok(apps) => {
+            context.insert("clean_apps", &models::CleanApp::from_vec(&apps));
+        },
+        Err(_) => {}
+    };
     Template::render("apps", &context)
 }
 
-#[get("/apps/create")]
+fn validate_domain(domain: &str) -> bool {
+    Regex::new(r"^https://([a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9].)?[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9].[a-zA-Z]{2,3}$").unwrap().is_match(domain)
+}
+
+#[post("/createApp", data="<app_form>")]
+fn submit_app(app_form: Form<models::FormApp>, db_conn: DbConn, cookies: Cookies) -> Result<Redirect, status::Custom<&str>> {
+    let (_, _, user) = signed_in_context(&*db_conn, cookies);
+    let form_app = app_form.into_inner();
+    let new_app;
+
+    match user {
+        Some(user) => {
+            new_app = form_app.to_new_app(user.id);
+        },
+        None => {
+            return Err(status::Custom(Status::BadRequest, "Must be signed in"))
+        }
+    }
+
+    if !validate_domain(&new_app.domain) {return Err(status::Custom(Status::BadRequest, "Invalid domain"))}
+    if !validate_title(&new_app.title) {return Err(status::Custom(Status::BadRequest, "Title must be 3-12 characters"))}
+    if new_app.description.len() > 256 {return Err(status::Custom(Status::BadRequest, "Description is too long - max 256 characters"))}
+    if new_app.token.len() != 60 {return Err(status::Custom(Status::BadRequest, "Token must be exactly 60 characters"))}
+
+    match diesel::insert_into(schema::apps::table).values(&new_app).get_result::<models::App>(&*db_conn) {
+        Ok(app) => {
+            Ok(Redirect::to(uri!(app: app.title)))
+        },
+        Err(e) => {
+            match &*(e.to_string()) {
+                "Failed to add app to database duplicate key value violates unique constraint \"apps_title_key\"" => Err(status::Custom(Status::BadRequest, "Duplicate app name")),
+                _ => {
+                    eprintln!("Failed to add app to database {}", e);
+                    Err(status::Custom(Status::InternalServerError, "Failed to add app to database"))
+                }
+            }
+        }
+    }
+}
+
+#[get("/createApp")]
 fn create_app(db_conn: DbConn, cookies: Cookies) -> Template {
-    let context = signed_in_context(&*db_conn, cookies);
+    let (context, _, _) = signed_in_context(&*db_conn, cookies);
     Template::render("create_app", &context)
+}
+
+#[get("/apps/<title>")]
+fn app(title: String, db_conn: DbConn, cookies: Cookies) -> Result<Template, status::NotFound<String>> {
+    let (mut context, _, _) = signed_in_context(&*db_conn, cookies);
+
+    match db::get_app_by_title(&*db_conn, &title) {
+        Ok(app) => {
+            context.insert("app", &app);
+            context.insert("clean_app", &models::CleanApp::from_app(&app));
+            Ok(Template::render("app", &context))
+        },
+        Err(_) => Err(status::NotFound("App not found".to_owned()))
+    }
+}
+
+#[post("/apps/<title>/delete", data = "<login_user>")]
+fn delete_app(title: String, db_conn: DbConn, login_user: Form<models::LoginUser>) -> Result<Redirect, status::Custom<&'static str>> {
+    match schema::users::table.filter(schema::users::username.eq(&login_user.username)).filter(schema::users::password_hash.crypt_eq(&login_user.password)).first::<models::User>(&*db_conn) {
+        Ok(user) => {
+            match db::get_app_by_title(&*db_conn, &title) {
+                Ok(app) => {
+                    if app.owner_id == user.id {
+                        match diesel::delete(schema::apps::table.filter(schema::apps::id.eq(app.id))).execute(&*db_conn) {
+                            Ok(_) => Ok(Redirect::to(uri!(home))),
+                            Err(_) => Err(status::Custom(Status::InternalServerError, "Failed to delete app"))
+                        }
+                    } else {
+                        return Err(status::Custom(Status::Forbidden, "You don't have permission to delete this app"))
+                    }
+                },
+                Err(_) => Err(status::Custom(Status::NotFound, "App not found"))
+            }
+        },
+        Err(_) => Err(status::Custom(Status::Forbidden, "Failed to authenticate user"))
+    }
 }
 
 fn main() {
@@ -258,6 +346,9 @@ fn main() {
             user_profile,
             apps,
             create_app,
+            submit_app,
+            app,
+            delete_app,
         ])
         .attach(DbConn::fairing())
         .attach(Template::fairing())

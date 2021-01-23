@@ -7,7 +7,11 @@
     {% if not user %}
         <span>You must be signed in to create an app</span>
     {% else %}
-        <form method="POST" action="/apps">
+        <form method="POST">
+            <label for="title">Title: </label><input type="text" id="title" name="title"><br>
+            <label for="description">Description: </label><input type="text" id="description" name="description"><br>
+            <label for="domain">Domain: </label><input type="text" id="domain" name="domain"><br>
+            <label for="token">Token: </label><input type="password" id="token" name="token"><br>
             <button type="submit">Create</button>
         </form>
     {% endif %}

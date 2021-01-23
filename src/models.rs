@@ -26,6 +26,79 @@ impl Cleaned {
 }
 
 #[derive(Queryable, Serialize)]
+pub struct App {
+    pub id: i64,
+    pub owner_id: i64,
+    pub title: String,
+    pub description: String,
+    pub domain: String,
+    pub token: String,
+    pub connected: bool,
+    pub connected_error: String,
+}
+
+#[derive(Serialize)]
+pub struct CleanApp {
+    pub title: Cleaned,
+    pub description: Cleaned,
+    pub domain: Cleaned,
+    pub token: Cleaned,
+    pub connected_error: Cleaned,
+}
+
+impl CleanApp {
+    pub fn from_app(app: &App) -> CleanApp {
+        CleanApp {
+            title: Cleaned::new(&app.title),
+            description: Cleaned::new(&app.description),
+            domain: Cleaned::new(&app.domain),
+            token: Cleaned::new(&app.token),
+            connected_error: Cleaned::new(&app.connected_error),
+        }
+    }
+
+    pub fn from_vec(apps: &Vec<App>) -> Vec<CleanApp> {
+        let mut cleaned = Vec::new();
+        
+        for app in apps {
+            cleaned.push(CleanApp::from_app(&app));
+        }
+
+        return cleaned;
+    }
+}
+
+#[derive(FromForm)]
+pub struct FormApp {
+    pub title: String,
+    pub description: String,
+    pub domain: String,
+    pub token: String
+}
+
+impl FormApp {
+    pub fn to_new_app(self, owner_id: i64) -> NewApp {
+        NewApp {
+            owner_id: owner_id,
+            title: self.title,
+            description: self.description,
+            domain: self.domain,
+            token: self.token
+        }
+    }
+}
+
+#[derive(FromForm, Insertable)]
+#[table_name = "apps"]
+pub struct NewApp {
+    pub owner_id: i64,
+    pub title: String,
+    pub description: String,
+    pub domain: String,
+    pub token: String
+}
+
+#[derive(Queryable, Serialize)]
 pub struct User {
     pub id: i64,
     pub username: String,
@@ -40,7 +113,7 @@ pub struct CleanUser {
 }
 
 impl CleanUser {
-    pub fn new(user: User) -> CleanUser {
+    pub fn new(user: &User) -> CleanUser {
         CleanUser {
             username: Cleaned::new(&user.username),
             email: Cleaned::new(&user.email),

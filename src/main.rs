@@ -162,7 +162,7 @@ fn submit_signup(db_conn: DbConn, new_user_form: Form<models::NewUser>, cookies:
     let new_user = new_user_form.into_inner();
     let email = new_user.email.clone();
     let username = new_user.username.clone();
-    match validate_title(&username) && username.len() <= 12 {
+    match validate_title(&username) && username.len() <= 24 {
         true => {
             match validate_email(&email) {
                 true => {
@@ -251,15 +251,20 @@ fn apps(db_conn: DbConn, cookies: Cookies) -> Template {
 }
 
 fn validate_domain(domain: &str) -> bool {
-    Regex::new(
+    let valid_formatting = Regex::new(
         r"^https://([a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9].)?[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9].[a-zA-Z]{2,3}(:[0-9]{1,5})?$"
-    ).unwrap().is_match(domain) && (
-        Regex::new(
-            r"[0-9]{1,5}$"
-        ).unwrap()
-        .find(domain).unwrap().as_str()
-        .parse::<i32>().unwrap() < 65536
-    )
+    ).unwrap().is_match(domain);
+    
+    let valid_port = match Regex::new(
+        r"[0-9]{1,5}$"
+    ).unwrap().find(domain) {
+        Some(port_match) => {
+            return port_match.as_str().parse::<i32>().unwrap() < 65536
+        }
+        None => true
+    };
+    
+    return valid_formatting && valid_port
 }
 
 #[get("/createApp")]

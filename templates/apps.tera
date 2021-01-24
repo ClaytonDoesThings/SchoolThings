@@ -1,6 +1,6 @@
 {% extends "base" %}
 {% block title %}Apps | School Things{% endblock title %}
-{% block description %}Apps{% endblock description %}
+{% block description %}Browse apps on School Things{% endblock description %}
 {% block canonical_path %}/apps{% endblock canonical_path %}
 {% block content %}
     <h1>Apps</h1>

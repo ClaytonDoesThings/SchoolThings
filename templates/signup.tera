@@ -1,6 +1,6 @@
 {% extends "base" %}
 {% block title %}Sign Up | School Things{% endblock title %}
-{% block description %}Sign up. Just do it. OK?{% endblock description %}
+{% block description %}Login to School Things using with a username, an email, and a password.{% endblock description %}
 {% block canonical_path %}/signup{% endblock canonical_path %}
 {% block content %}
     <h1>Sign Up</h1>

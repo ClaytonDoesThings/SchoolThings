@@ -71,6 +71,13 @@ pub fn get_user_from_cookies(pg_conn: &PgConnection, cookies: Cookies) -> Result
     }
 }
 
+pub fn get_users(pg_conn: &PgConnection) -> Result<Vec<models::User>, String> {
+    match schema::users::table.load::<models::User>(pg_conn) {
+        Ok(users) => Ok(users),
+        Err(e) => Err(format!("Failed to get users {}", e))
+    }
+}
+
 pub fn get_app_by_title(pg_conn: &PgConnection, title: &str) -> Result<models::App, String> {
     match schema::apps::table.filter(
         schema::apps::title.eq(title)

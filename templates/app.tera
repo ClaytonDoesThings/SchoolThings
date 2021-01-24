@@ -1,10 +1,12 @@
 {% extends "base" %}
 {% block title %}{{ clean_app.title.html }} | App | School Things{% endblock title %}
-{% block description %}{{ clean_app.title.html }} on School Things.{% endblock description %}
+{% block description %}{{ clean_app.description.html }}{% endblock description %}
 {% block canonical_path %}/app/{{ clean_app.title.url }}{% endblock canonical_path %}
 {% block content %}
     {% set owned_app = user and user.id == app.owner_id %}
     <h1>{{ clean_app.title.html }}</h1>
+    {{ clean_app.description.html }}
+    <br><br>
     {% if owned_app %}
         You own this app.
         <br>

@@ -56,7 +56,7 @@ fn signed_in_context(pg_conn: &PgConnection, cookies: Cookies) -> (Context, Opti
             match db::get_user_from_session(&pg_conn, &session) {
                 Ok(user) => {
                     context.insert("user", &user);
-                    context.insert("clean_user", &models::CleanUser::new(&user));
+                    context.insert("clean_user", &models::CleanUser::from_user(&user));
                     (context, Some(session), Some(user))
                 },
                 Err(_) => (context, Some(session), None)
@@ -79,7 +79,20 @@ fn favicon() -> Result<NamedFile, status::NotFound<String>> {
 }
 
 #[get("/sitemap.xml")]
-fn sitemap() -> Template { Template::render("sitemap", &default_context()) }
+fn sitemap(db_conn: DbConn) -> Template {
+    let mut context = default_context();
+
+    match db::get_apps(&*db_conn) {
+        Ok(apps) => context.insert("clean_apps", &models::CleanApp::from_vec(&apps)),
+        _ => {}
+    };
+    match db::get_users(&*db_conn) {
+        Ok(users) => context.insert("clean_users", &models::CleanUser::from_vec(&users)),
+        _ => {}
+    };
+
+    Template::render("sitemap", &context)
+}
 
 #[get("/login?<error>&<username>")]
 fn login(error: Option<String>, username: Option<String>, db_conn: DbConn, cookies: Cookies) -> Template {
@@ -231,7 +244,7 @@ fn user_profile(username: String, db_conn: DbConn, cookies: Cookies) -> Result<T
     match db::get_user_by_username(&*db_conn, username) {
         Ok(user) => {
             context.insert("profile", &user);
-            context.insert("profile_cleaned", &models::CleanUser::new(&user));
+            context.insert("profile_cleaned", &models::CleanUser::from_user(&user));
             Ok(Template::render("user_profile", &context))
         },
         Err(_) => Err(status::NotFound("Couldn't find user".to_string()))

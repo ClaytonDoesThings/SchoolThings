@@ -113,11 +113,21 @@ pub struct CleanUser {
 }
 
 impl CleanUser {
-    pub fn new(user: &User) -> CleanUser {
+    pub fn from_user(user: &User) -> CleanUser {
         CleanUser {
             username: Cleaned::new(&user.username),
             email: Cleaned::new(&user.email),
         }
+    }
+
+    pub fn from_vec(users: &Vec<User>) -> Vec<CleanUser> {
+        let mut cleaned = Vec::new();
+        
+        for user in users {
+            cleaned.push(CleanUser::from_user(&user));
+        }
+
+        return cleaned;
     }
 }
 

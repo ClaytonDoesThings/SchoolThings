@@ -153,8 +153,8 @@ fn submit_login(db_conn: DbConn, login_user: Form<models::LoginUser>, cookies: C
     }
 }
 
-fn validate_title(username: &str) -> bool {
-    Regex::new(r"^[0-9A-Za-z][0-9A-Za-z_-]{1,10}[0-9A-Za-z]$").unwrap().is_match(username)
+fn validate_title(title: &str) -> bool {
+    Regex::new(r"^[0-9A-Za-z][0-9A-Za-z_-]{1,}[0-9A-Za-z]$").unwrap().is_match(title)
 }
 
 #[post("/signup", data = "<new_user_form>")]
@@ -162,7 +162,7 @@ fn submit_signup(db_conn: DbConn, new_user_form: Form<models::NewUser>, cookies:
     let new_user = new_user_form.into_inner();
     let email = new_user.email.clone();
     let username = new_user.username.clone();
-    match validate_title(&username) {
+    match validate_title(&username) && username.len() <= 12 {
         true => {
             match validate_email(&email) {
                 true => {
@@ -251,7 +251,21 @@ fn apps(db_conn: DbConn, cookies: Cookies) -> Template {
 }
 
 fn validate_domain(domain: &str) -> bool {
-    Regex::new(r"^https://([a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9].)?[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9].[a-zA-Z]{2,3}$").unwrap().is_match(domain)
+    Regex::new(
+        r"^https://([a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9].)?[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9].[a-zA-Z]{2,3}(:[0-9]{1,5})$"
+    ).unwrap().is_match(domain) && (
+        Regex::new(
+            r"[0-9]{1,5}$"
+        ).unwrap()
+        .find(domain).unwrap().as_str()
+        .parse::<i32>().unwrap() < 65536
+    )
+}
+
+#[get("/createApp")]
+fn create_app(db_conn: DbConn, cookies: Cookies) -> Template {
+    let (context, _, _) = signed_in_context(&*db_conn, cookies);
+    Template::render("create_app", &context)
 }
 
 #[post("/createApp", data="<app_form>")]
@@ -270,7 +284,7 @@ fn submit_app(app_form: Form<models::FormApp>, db_conn: DbConn, cookies: Cookies
     }
 
     if !validate_domain(&new_app.domain) {return Err(status::Custom(Status::BadRequest, "Invalid domain"))}
-    if !validate_title(&new_app.title) {return Err(status::Custom(Status::BadRequest, "Title must be 3-12 characters"))}
+    if !validate_title(&new_app.title) || new_app.title.len() > 24 {return Err(status::Custom(Status::BadRequest, "Title must be 3-24 characters"))}
     if new_app.description.len() > 256 {return Err(status::Custom(Status::BadRequest, "Description is too long - max 256 characters"))}
     if new_app.token.len() != 60 {return Err(status::Custom(Status::BadRequest, "Token must be exactly 60 characters"))}
 
@@ -288,12 +302,6 @@ fn submit_app(app_form: Form<models::FormApp>, db_conn: DbConn, cookies: Cookies
             }
         }
     }
-}
-
-#[get("/createApp")]
-fn create_app(db_conn: DbConn, cookies: Cookies) -> Template {
-    let (context, _, _) = signed_in_context(&*db_conn, cookies);
-    Template::render("create_app", &context)
 }
 
 #[get("/apps/<title>")]

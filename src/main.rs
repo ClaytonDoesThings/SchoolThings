@@ -252,7 +252,7 @@ fn apps(db_conn: DbConn, cookies: Cookies) -> Template {
 
 fn validate_domain(domain: &str) -> bool {
     Regex::new(
-        r"^https://([a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9].)?[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9].[a-zA-Z]{2,3}(:[0-9]{1,5})$"
+        r"^https://([a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9].)?[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9].[a-zA-Z]{2,3}(:[0-9]{1,5})?$"
     ).unwrap().is_match(domain) && (
         Regex::new(
             r"[0-9]{1,5}$"

@@ -183,8 +183,8 @@ fn submit_signup(db_conn: DbConn, new_user_form: Form<models::NewUser>, cookies:
                                 },
                                 Err(e) => {
                                     match &*e.to_string() {
-                                        "duplicate key value violates unique constraint \"users_username_key\"" => Redirect::to(uri!(signup: "Duplicate username".to_string(), username, email)),
-                                        "duplicate key value violates unique constraint \"users_email_key\"" => Redirect::to(uri!(signup: "Duplicate email".to_string(), username, email)),
+                                        "duplicate key value violates unique constraint \"users_username_unique_idx\"" => Redirect::to(uri!(signup: "Duplicate username".to_string(), username, email)),
+                                        "duplicate key value violates unique constraint \"users_email_unique_idx\"" => Redirect::to(uri!(signup: "Duplicate email".to_string(), username, email)),
                                         _ => {
                                             eprintln!("Failed to add user to database: {}", e);
                                             Redirect::to(uri!(signup: "Failed to add user to database".to_string(), username, email))
@@ -299,7 +299,7 @@ fn submit_app(app_form: Form<models::FormApp>, db_conn: DbConn, cookies: Cookies
         },
         Err(e) => {
             match &*(e.to_string()) {
-                "Failed to add app to database duplicate key value violates unique constraint \"apps_title_key\"" => Err(status::Custom(Status::BadRequest, "Duplicate app name")),
+                "Failed to add app to database duplicate key value violates unique constraint \"apps_title_unique_idx\"" => Err(status::Custom(Status::BadRequest, "Duplicate app name")),
                 _ => {
                     eprintln!("Failed to add app to database {}", e);
                     Err(status::Custom(Status::InternalServerError, "Failed to add app to database"))

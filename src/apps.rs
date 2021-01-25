@@ -24,6 +24,7 @@ use super::{
     common::*,
     crypt_eq::CryptExpressionMethods,
     DbConn,
+    repos,
     schema,
     schema::apps,
     signed_in_context,
@@ -212,23 +213,34 @@ pub fn app(title: String, db_conn: DbConn, cookies: Cookies) -> Result<Template,
 }
 
 #[post("/apps/<title>/delete", data = "<login_user>")]
-pub fn delete_app(title: String, db_conn: DbConn, login_user: Form<users::LoginUser>) -> Result<Redirect, status::Custom<&'static str>> {
+pub fn delete_app(title: String, db_conn: DbConn, login_user: Form<users::LoginUser>) -> Result<Redirect, status::Custom<String>> {
     match schema::users::table.filter(schema::users::username.eq(&login_user.username)).filter(schema::users::password_hash.crypt_eq(&login_user.password)).first::<users::User>(&*db_conn) {
         Ok(user) => {
             match get_by_title(&*db_conn, &title) {
                 Ok(app) => {
                     if app.owner_id == user.id {
-                        match diesel::delete(apps::table.filter(apps::id.eq(app.id))).execute(&*db_conn) {
-                            Ok(_) => Ok(Redirect::to(uri!(super::home))),
-                            Err(_) => Err(status::Custom(Status::InternalServerError, "Failed to delete app"))
+                        match schema::repos::table.filter(schema::repos::apps.contains(vec!(app.id))).load::<repos::Repo>(&*db_conn) {
+                            Ok(repos) => {
+                                for repo in repos {
+                                    match repo.remove_app(&*db_conn, app.id) {
+                                        Ok(_) => {},
+                                        Err(_) => return Err(status::Custom(Status::InternalServerError, format!("Failed to remove app from repo: {}.", repo.id)))
+                                    }
+                                }
+                                match diesel::delete(apps::table.filter(apps::id.eq(app.id))).execute(&*db_conn) {
+                                    Ok(_) => Ok(Redirect::to(uri!(super::home))),
+                                    Err(_) => Err(status::Custom(Status::InternalServerError, "Failed to delete app".to_string()))
+                                }
+                            },
+                            Err(_) => Err(status::Custom(Status::InternalServerError, "Couldn't retrieve repos that would be affected by deletion.".to_string()))
                         }
                     } else {
-                        return Err(status::Custom(Status::Forbidden, "You don't have permission to delete this app"))
+                        return Err(status::Custom(Status::Forbidden, "You don't have permission to delete this app".to_string()))
                     }
                 },
-                Err(_) => Err(status::Custom(Status::NotFound, "App not found"))
+                Err(_) => Err(status::Custom(Status::NotFound, "App not found".to_string()))
             }
         },
-        Err(_) => Err(status::Custom(Status::Forbidden, "Failed to authenticate user"))
+        Err(_) => Err(status::Custom(Status::Forbidden, "Failed to authenticate user".to_string()))
     }
 }

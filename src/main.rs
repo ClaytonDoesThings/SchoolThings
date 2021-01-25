@@ -82,6 +82,7 @@ fn main() {
             repos::submit_repo,
             repos::repo,
             repos::delete_repo,
+            repos::add_app,
         ])
         .attach(DbConn::fairing())
         .attach(Template::fairing())

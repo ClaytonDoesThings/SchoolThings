@@ -20,6 +20,7 @@ use rocket_contrib::templates::Template;
 use serde::Serialize;
 
 use super::{
+    apps,
     common::*,
     crypt_eq::CryptExpressionMethods,
     DbConn,
@@ -35,7 +36,27 @@ pub struct Repo {
     pub owner_id: i64,
     pub title: String,
     pub description: String,
-    pub repos: Vec<i64>,
+    pub apps: Vec<i64>,
+}
+
+impl Repo {
+    pub fn remove_app(&self, pg_conn: &PgConnection, app_id: i64) -> Result<(), String> {
+        match repos::table.filter(repos::id.eq(self.id)).first::<Repo>(&*pg_conn) {
+            Ok(mut repo) => {
+                for (i, &test_app_id) in repo.apps.iter().enumerate() {
+                    if test_app_id == app_id {
+                        repo.apps.remove(i);
+                        match diesel::update(repos::table.filter(repos::id.eq(repo.id))).set(repos::apps.eq(repo.apps)).execute(&*pg_conn) {
+                            Ok(_) => return Ok(()),
+                            Err(_) => return Err("Failed to remove app from repo".to_string())
+                        }
+                    }
+                }
+                return Err("Repo does not contain app".to_string())
+            },
+            Err(_) => Err("Failed to get updated repo to delete app from.".to_string())
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -101,6 +122,20 @@ pub fn get_all(pg_conn: &PgConnection) -> Result<Vec<Repo>, String> {
         Ok(repos) => Ok(repos),
         Err(e) => Err(format!("Failed to get repos {}", e))
     }
+}
+
+pub fn get_apps(pg_conn: &PgConnection, repo: &Repo) -> Result<Vec<apps::App>, String> {
+    let mut apps = Vec::new();
+    for app_id in &repo.apps {
+        match schema::apps::table.filter(schema::apps::id.eq(app_id)).first(&*pg_conn) {
+            Ok(app) => apps.push(app),
+            Err(e) => {
+                eprintln!("Failed to get app for repo. Repo ID: {}, App ID: {}, Error: {}", repo.id, app_id, e);
+                return Err(format!("Failed to get app for repo. Repo ID: {}, App ID: {}", repo.id, app_id))
+            }
+        }
+    }
+    return Ok(apps);
 }
 
 #[get("/repos")]
@@ -170,6 +205,13 @@ pub fn repo(title: String, db_conn: DbConn, cookies: Cookies) -> Result<Template
                 },
                 _ => {}
             }
+            match get_apps(&*db_conn, &repo) {
+                Ok(apps) => {
+                    context.insert("apps", &apps);
+                    context.insert("clean_apps", &apps::CleanApp::from_vec(&apps));
+                },
+                _ => {}
+            }
             Ok(Template::render("repo", &context))
         },
         Err(_) => Err(status::NotFound("Repo not found".to_owned()))
@@ -192,6 +234,39 @@ pub fn delete_repo(title: String, db_conn: DbConn, login_user: Form<users::Login
                     }
                 },
                 Err(_) => Err(status::Custom(Status::NotFound, "Repo not found"))
+            }
+        },
+        Err(_) => Err(status::Custom(Status::Forbidden, "Failed to authenticate user"))
+    }
+}
+
+#[derive(FromForm)]
+pub struct AddAppForum {
+    title: String
+}
+
+#[post("/repos/<title>/addApp", data = "<add_app_forum>")]
+pub fn add_app(title: String, db_conn: DbConn, cookies: Cookies, add_app_forum: Form<AddAppForum>) -> Result<Redirect, status::Custom<&'static str>> {
+    match get_by_title(&*db_conn, &title) {
+        Ok(mut repo) => {
+            match users::get_from_cookies(&*db_conn, cookies) {
+                Ok (user) => {
+                    if user.id == repo.owner_id {
+                        match apps::get_by_title(&*db_conn, &add_app_forum.title) {
+                            Ok(app) => {
+                                repo.apps.push(app.id);
+                                match diesel::update(repos::table.filter(repos::id.eq(repo.id))).set(repos::apps.eq(repo.apps)).execute(&*db_conn) {
+                                    Ok(_) => Ok(Redirect::to(uri!(repo: title))),
+                                    Err(_) => Err(status::Custom(Status::InternalServerError, "Failed to add app."))
+                                }
+                            },
+                            Err(_) => Err(status::Custom(Status::NotFound, "Failed to get app id from title"))
+                        }
+                    } else {
+                        return Err(status::Custom(Status::Forbidden, "You don't have permission to add an app to this repo"))
+                    }
+                },
+                Err(_) => Err(status::Custom(Status::Forbidden, "Failed to authenticate user"))
             }
         },
         Err(_) => Err(status::Custom(Status::Forbidden, "Failed to authenticate user"))

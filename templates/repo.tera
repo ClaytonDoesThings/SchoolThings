@@ -5,6 +5,49 @@
 {% block content %}
     {% set owned_repo = user and user.id == repo.owner_id %}
     <h1>{{ clean_repo.title.html }}</h1>
+    <h2>Apps</h2>
+    {% if clean_apps is defined %}
+        {% if clean_apps|length > 0 %}
+            {% for clean_app in clean_apps %}
+                <a href="/apps/{{ clean_app.title.url }}">{{ clean_app.title.html }}</a>
+            {% endfor %}
+        {% else %}
+            <span>No apps :(</span>
+        {% endif %}
+        {% if owned_repo %}
+            <br>
+            <button id="openAddAppModal">Add App</button>
+            <div id="addAppModal" class="modal">
+                <div class="modal-content">
+                    <span id="addAppModalClose" class="modal-close">&times;</span>
+                    <p>Enter the <b>exact</b> title of the app.</p>
+                    <form action="{{ clean_repo.title.url }}/addApp" method="POST">
+                        <label for="title">Title: </label><input type="text" id="appTitle" name="title"><br>
+                        <button type="submit">Add App</button>
+                    </form>
+                </div>
+            </div>
+            <script>
+                var addAppModal = document.getElementById("addAppModal");
+
+                document.getElementById("openAddAppModal").onclick = () => {
+                    addAppModal.style.display = "block";
+                }
+
+                document.getElementById("addAppModalClose").onclick = () => {
+                    addAppModal.style.display = "none";
+                }
+
+                addAppModal.onclick = (event) => {
+                    if (event.target == addAppModal) {
+                        addAppModal.style.display = "none";
+                    }
+                }
+            </script>
+        {% endif %}
+    {% else %}
+        <span>Failed to get apps</span>
+    {% endif %}
     {{ clean_repo.description.html }}
     <br><br>
     {% if owned_repo %}
@@ -16,8 +59,8 @@
                 <span id="deleteModalClose" class="modal-close">&times;</span>
                 <p>This will delete the repo permanently. <b>This cannot be reversed.</b></p>
                 <form action="{{ clean_repo.title.url }}/delete" method="POST">
-                    <input type="text" id="username" name="username" value="{{ clean_user.username.html }}" style="display: none">
-                    <label for="password">Password: </label><input type="password" id="password" name="password"><br>
+                    <input type="text" id="deleteUsername" name="username" value="{{ clean_user.username.html }}" style="display: none">
+                    <label for="password">Password: </label><input type="password" id="deletePassword" name="password"><br>
                     <button type="submit">Delete</button>
                 </form>
             </div>
@@ -33,7 +76,7 @@
                 deleteModal.style.display = "none";
             }
 
-            window.onclick = (event) => {
+            deleteModal.onclick = (event) => {
                 if (event.target == deleteModal) {
                     deleteModal.style.display = "none";
                 }

@@ -1,0 +1,14 @@
+{% extends "base" %}
+{% block title %}Repos | School Things{% endblock title %}
+{% block description %}Browse repositories on School Things{% endblock description %}
+{% block canonical_path %}/repos{% endblock canonical_path %}
+{% block content %}
+    <h1>Repos</h1>
+    {% if user %}
+        <a href="/createRepo">Create Your Own!</a>
+    {% endif %}
+    <br>
+    {% for clean_repo in clean_repos %}
+        <span><a href="./repos/{{ clean_repo.title.url }}" style="color: #000">{{ clean_repo.title.html }}</a></span>
+    {% endfor %}
+{% endblock content %}

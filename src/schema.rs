@@ -12,6 +12,16 @@ table! {
 }
 
 table! {
+    repos (id) {
+        id -> Int8,
+        owner_id -> Int8,
+        title -> Varchar,
+        description -> Varchar,
+        apps -> Array<Int8>,
+    }
+}
+
+table! {
     sessions (id) {
         id -> Int8,
         logged_in_user -> Nullable<Int8>,
@@ -29,6 +39,7 @@ table! {
 
 allow_tables_to_appear_in_same_query!(
     apps,
+    repos,
     sessions,
     users,
 );

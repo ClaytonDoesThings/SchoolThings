@@ -5,6 +5,7 @@
 {% block content %}
     {% set owned_repo = user and user.id == repo.owner_id %}
     <h1>{{ clean_repo.title.html }}</h1>
+    {{ clean_repo.description.html }}
     <h2>Apps</h2>
     {% if clean_apps is defined %}
         {% if clean_apps|length > 0 %}
@@ -48,7 +49,6 @@
     {% else %}
         <span>Failed to get apps</span>
     {% endif %}
-    {{ clean_repo.description.html }}
     <br><br>
     {% if owned_repo %}
         <span>You own this repo.</span>
